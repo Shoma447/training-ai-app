@@ -16,7 +16,7 @@ from sqlalchemy import Column, Date, Float, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # ===== Firebase (pyrebase) =====
-import pyrebase
+import pyrebase4 as pyrebase
 
 # -------------------------
 # Firebase 設定（あなたの値を反映済み）
