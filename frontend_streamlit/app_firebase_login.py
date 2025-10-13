@@ -1,10 +1,9 @@
-# app.py
+# app_firebase_login.py
 import os
 import platform
 from datetime import date
 import re
 import io
-import calendar
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -15,6 +14,26 @@ from dotenv import load_dotenv
 from sklearn.linear_model import LinearRegression
 from sqlalchemy import Column, Date, Float, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+# ===== Firebase (pyrebase) =====
+import pyrebase
+
+# -------------------------
+# Firebase 設定（あなたの値を反映済み）
+# -------------------------
+firebaseConfig = {
+    "apiKey": "AIzaSyBl9Te8OqO-vVdNWH8bK1Dj31D1IqrujZA",
+    "authDomain": "ai-kintore.firebaseapp.com",
+    "projectId": "ai-kintore",
+    "storageBucket": "ai-kintore.firebasestorage.app",
+    "messagingSenderId": "290962493885",
+    "appId": "1:290962493885:web:b9353e2ce72a0ef9b742d4",
+    "measurementId": "G-DP0F646EBL",
+    # pyrebase が参照するため databaseURL を追加
+    "databaseURL": "https://ai-kintore-default-rtdb.firebaseio.com",
+}
+firebase = pyrebase.initialize_app(firebaseConfig)
+fb_auth = firebase.auth()
 
 # =========================
 # 日本語フォント設定
@@ -48,6 +67,8 @@ SessionLocal = sessionmaker(bind=engine)
 class TrainingRecord(Base):
     __tablename__ = "training_records"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    # 🔐 追加：ログインユーザー識別（必須）
+    user_id = Column(String, index=True)
     date = Column(Date, index=True)
     body_part = Column(String, index=True)
     exercise = Column(String, index=True)
@@ -60,17 +81,48 @@ Base.metadata.create_all(bind=engine)
 # =========================
 # Streamlit設定
 # =========================
-st.set_page_config(page_title="AI Kintore v2.5", layout="wide")
-st.title("🏋️‍♂️ AI Kintore：トレーニング分析ダッシュボード")
-st.caption("📅 カレンダーで日付を選択 → 🏋️ 記録管理で編集・追加 → 📈 分析で推移を確認")
+st.set_page_config(page_title="AI Kintore v2.5 + Firebase Login", layout="wide")
 
 session = SessionLocal()
 
 # =========================
-# 共通関数
+# ログインUI
+# =========================
+def login_view():
+    st.title("🔐 ログイン / 新規登録（Firebase）")
+
+    mode = st.radio("モードを選択", ["ログイン", "新規登録"], horizontal=True)
+    email = st.text_input("📧 メールアドレス")
+    password = st.text_input("🔑 パスワード", type="password")
+
+    col_a, col_b = st.columns(2)
+    if mode == "ログイン":
+        if col_a.button("ログイン"):
+            try:
+                user = fb_auth.sign_in_with_email_and_password(email, password)
+                st.session_state["user"] = user
+                st.session_state["user_uid"] = user["localId"]
+                st.session_state["user_email"] = email
+                st.success(f"ようこそ {email} さん！")
+                st.rerun()
+            except Exception as e:
+                st.error("ログインに失敗しました。メール/パスワードをご確認ください。")
+    else:
+        if col_b.button("新規登録"):
+            try:
+                fb_auth.create_user_with_email_and_password(email, password)
+                st.success("✅ 登録完了！ログインしてください。")
+            except Exception as e:
+                st.error("登録に失敗しました。既に登録済みの可能性があります。")
+
+# =========================
+# 共通関数（※ユーザー別にフィルタ）
 # =========================
 def load_df():
-    recs = session.query(TrainingRecord).all()
+    uid = st.session_state.get("user_uid")
+    if not uid:
+        return pd.DataFrame(columns=["ID", "日付", "部位", "種目", "重量(kg)", "回数", "ボリューム"])
+    recs = session.query(TrainingRecord).filter(TrainingRecord.user_id == uid).all()
     if not recs:
         return pd.DataFrame(columns=["ID", "日付", "部位", "種目", "重量(kg)", "回数", "ボリューム"])
     return pd.DataFrame([{
@@ -88,6 +140,20 @@ def validate_numeric_input(value: str, field_name: str):
         st.warning(f"⚠️ {field_name} は半角数字のみ入力可能です。")
         return None
     return float(value)
+
+# =========================
+# ルーティング（ログインしてなければログイン画面）
+# =========================
+if "user_uid" not in st.session_state:
+    login_view()
+    st.stop()
+
+# =========================
+# ログイン済み：アプリ本体
+# =========================
+st.title(f"🏋️‍♂️ AI Kintore：トレーニング分析ダッシュボード")
+st.caption("📅 カレンダーで日付を選択 → 🏋️ 記録管理で編集・追加 → 📈 分析で推移を確認")
+st.info(f"ログイン中：{st.session_state.get('user_email', '(email不明)')}")
 
 df = load_df()
 
@@ -130,9 +196,7 @@ with tab_calendar:
             categories=["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"],
             ordered=True
         )
-
         heat_df = df_copy.groupby(["週", "曜日"])["ボリューム"].sum().reset_index()
-
         fig = px.density_heatmap(
             heat_df, x="週", y="曜日", z="ボリューム",
             color_continuous_scale="YlOrRd",
@@ -190,6 +254,7 @@ with tab_manage:
 
     if col2.button("💾 すべて保存"):
         new_records = []
+        uid = st.session_state.get("user_uid")
         for ex in st.session_state.exercises:
             if not ex["name"]:
                 continue
@@ -197,6 +262,7 @@ with tab_manage:
                 if w > 0 and r > 0:
                     new_records.append(
                         TrainingRecord(
+                            user_id=uid,
                             date=selected_date,
                             body_part=ex["part"],
                             exercise=ex["name"],
@@ -285,6 +351,7 @@ with tab_analysis:
 with tab_settings:
     st.subheader("⚙️ 設定・バックアップ")
 
+    # 接続確認
     try:
         conn = engine.connect()
         st.success("✅ データベース接続成功")
@@ -292,7 +359,8 @@ with tab_settings:
     except Exception as e:
         st.error(f"❌ データベース接続に失敗しました: {e}")
 
-    st.markdown("### 💾 バックアップ")
+    # バックアップ（自分のデータのみ）
+    st.markdown("### 💾 バックアップ（CSV）")
     if df.empty:
         st.info("データがまだありません。")
     else:
@@ -305,14 +373,17 @@ with tab_settings:
             mime="text/csv"
         )
 
+    # 復元（アップロードしたデータを現在のユーザーで保存）
     st.markdown("### 📤 CSVから復元")
     uploaded = st.file_uploader("CSVファイルを選択", type=["csv"])
     if uploaded:
         try:
             new_df = pd.read_csv(uploaded)
             new_df["日付"] = pd.to_datetime(new_df["日付"]).dt.date
+            uid = st.session_state.get("user_uid")
             records = [
                 TrainingRecord(
+                    user_id=uid,
                     date=row["日付"],
                     body_part=row["部位"],
                     exercise=row["種目"],
@@ -329,23 +400,21 @@ with tab_settings:
             session.rollback()
             st.error(f"❌ 復元エラー: {e}")
 
+    st.markdown("---")
+    if st.button("🚪 ログアウト"):
+        st.session_state.clear()
+        st.success("ログアウトしました。")
+        st.rerun()
+
 # =========================
 # 📱 スマホ対応CSS
 # =========================
 st.markdown("""
 <style>
-[data-testid="stHorizontalBlock"] {
-    gap: 0.5rem !important;
-}
-input, select, textarea {
-    font-size: 16px !important;
-}
-@media (max-width: 768px) {
-    .stApp {
-        zoom: 0.9;
-    }
-}
+[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; }
+input, select, textarea { font-size: 16px !important; }
+@media (max-width: 768px) { .stApp { zoom: 0.9; } }
 </style>
 """, unsafe_allow_html=True)
 
-st.caption("AI Kintore v2.5 © 2025 | All devices responsive version")
+st.caption("AI Kintore v2.5 © 2025 | Firebase Login + User-scoped data")
