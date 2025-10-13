@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+plotly
+scikit-learn
+sqlalchemy
+python-dotenv
+psycopg2-binary
+firebase-admin
