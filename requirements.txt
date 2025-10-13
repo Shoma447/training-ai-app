@@ -10,3 +10,4 @@ python-dotenv
 psycopg2-binary
 firebase-admin
 pyrebase4
+pyrebase
