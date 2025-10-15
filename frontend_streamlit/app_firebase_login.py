@@ -21,23 +21,26 @@ import firebase_admin
 from firebase_admin import credentials, auth
 
 # =========================
-# ✅ Firebase初期化（修正版）
+# ✅ Firebase初期化（Cloud or Local 両対応）
 # =========================
-load_dotenv()  # .envを読み込む（✅ 修正）
-firebase_creds_str = os.getenv("FIREBASE_CREDENTIALS")
-
-if not firebase_creds_str:
-    st.error("❌ 環境変数 FIREBASE_CREDENTIALS が設定されていません。")
-    st.stop()
-
-try:
-    firebase_creds = json.loads(firebase_creds_str)
+if "FIREBASE_CREDENTIALS" in st.secrets:
+    # ✅ Streamlit Cloud用（SecretsからJSONを直接読み込み）
+    firebase_creds = json.loads(st.secrets["FIREBASE_CREDENTIALS"])
     cred = credentials.Certificate(firebase_creds)
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
-except Exception as e:
-    st.error(f"❌ Firebase初期化エラー: {e}")
-    st.stop()
+else:
+    # ✅ ローカル開発用（.env + JSONファイル）
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+    creds_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+
+    if not creds_path or not os.path.exists(creds_path):
+        st.error(f"❌ Firebase 認証ファイルが見つかりません: {creds_path}")
+        st.stop()
+
+    cred = credentials.Certificate(creds_path)
+
+# Firebaseアプリ初期化
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
 
 # =========================
 # 日本語フォント設定
@@ -58,9 +61,10 @@ set_japanese_font()
 # =========================
 # DB接続設定
 # =========================
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Secretsまたは.envのどちらかから取得
+DATABASE_URL = st.secrets.get("DATABASE_URL") if "DATABASE_URL" in st.secrets else os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    st.error("❌ .env に DATABASE_URL がありません。")
+    st.error("❌ DATABASE_URL が設定されていません。")
     st.stop()
 
 engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
@@ -216,4 +220,4 @@ input, select, textarea { font-size: 16px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.caption("AI Kintore v2.5 © 2025 | Firebase Admin Login + User Data Isolation")
+st.caption("AI Kintore v2.5 © 2025 | Firebase Admin Login + Cloud Compatible")
