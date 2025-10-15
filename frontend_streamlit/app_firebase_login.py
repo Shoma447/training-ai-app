@@ -19,6 +19,21 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 import firebase_admin
 from firebase_admin import credentials, auth
 
+import json
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# 環境変数からサービスアカウントキーを読み込む
+firebase_creds = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+cred = credentials.Certificate(firebase_creds)
+
+# Firebase管理者SDKを初期化
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred, {
+        "projectId": firebase_creds["project_id"]
+    })
+
+
 # -------------------------
 # Firebase 設定（公式SDK用）
 # -------------------------
