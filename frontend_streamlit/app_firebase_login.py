@@ -16,31 +16,28 @@ from sqlalchemy import Column, Date, Float, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # ===== Firebase（公式SDK） =====
-import firebase_admin
-from firebase_admin import credentials, auth
-
 import json
 import firebase_admin
 from firebase_admin import credentials, auth
 
-# 環境変数からサービスアカウントキーを読み込む
-firebase_creds = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
-cred = credentials.Certificate(firebase_creds)
+# =========================
+# ✅ Firebase初期化（修正版）
+# =========================
+load_dotenv()  # .envを読み込む（✅ 修正）
+firebase_creds_str = os.getenv("FIREBASE_CREDENTIALS")
 
-# Firebase管理者SDKを初期化
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred, {
-        "projectId": firebase_creds["project_id"]
-    })
+if not firebase_creds_str:
+    st.error("❌ 環境変数 FIREBASE_CREDENTIALS が設定されていません。")
+    st.stop()
 
-
-# -------------------------
-# Firebase 設定（公式SDK用）
-# -------------------------
-# Streamlit Cloudでは環境変数から自動初期化
-if not firebase_admin._apps:
-    cred = credentials.ApplicationDefault()
-    firebase_admin.initialize_app(cred)
+try:
+    firebase_creds = json.loads(firebase_creds_str)
+    cred = credentials.Certificate(firebase_creds)
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+except Exception as e:
+    st.error(f"❌ Firebase初期化エラー: {e}")
+    st.stop()
 
 # =========================
 # 日本語フォント設定
@@ -61,7 +58,6 @@ set_japanese_font()
 # =========================
 # DB接続設定
 # =========================
-load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     st.error("❌ .env に DATABASE_URL がありません。")
