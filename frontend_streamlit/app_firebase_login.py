@@ -176,51 +176,38 @@ tab1, tab2, tab3, tab4 = st.tabs(["📅 カレンダー", "🏋️ 記録管理"
 # 📅 カレンダー
 with tab1:
     st.subheader("📅 トレーニングカレンダー")
-    if not df.empty:
-        df_dates = pd.to_datetime(df["日付"]).dt.date
-        unique_dates = sorted(set(df_dates.tolist()))
-    else:
-        unique_dates = []
-
-    default_date = unique_dates[-1] if unique_dates else date.today()
-    selected_date = st.date_input("日付を選択", value=default_date)
-    st.session_state["selected_date"] = selected_date
-
-    if selected_date in unique_dates:
-        st.success(f"✅ {selected_date} の記録があります。")
-    else:
-        st.info(f"ℹ️ {selected_date} の記録はまだありません。")
 
     if not df.empty:
         df_copy = df.copy()
         df_copy["日付"] = pd.to_datetime(df_copy["日付"])
         df_copy["週"] = df_copy["日付"].dt.isocalendar().week
-        try:
-            df_copy["曜日"] = df_copy["日付"].dt.day_name(locale="ja_JP")
-        except Exception:
-            df_copy["曜日"] = df_copy["日付"].dt.day_name()
-        df_copy["曜日"] = pd.Categorical(
-            df_copy["曜日"],
-            categories=["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"],
-            ordered=True
-        )
+        df_copy["曜日"] = df_copy["日付"].dt.day_name(locale="ja_JP")
+
+        # ✅ ヒートマップ作成
         heat_df = df_copy.groupby(["週", "曜日"])["ボリューム"].sum().reset_index()
         fig = px.density_heatmap(
-            heat_df, x="週", y="曜日", z="ボリューム",
+            heat_df,
+            x="週",
+            y="曜日",
+            z="ボリューム",
             color_continuous_scale="YlOrRd",
-            labels={"ボリューム": "総ボリューム(kg)"}
+            labels={"ボリューム": "総ボリューム(kg)", "週": "週番号", "曜日": "曜日"},
+            title="週ごと・曜日ごとの総ボリューム分布"
         )
+        fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
+        st.caption("🟡 赤いほどその週・曜日のトレーニングボリュームが高いことを示します。")
+    else:
+        st.info("まだトレーニング記録がありません。")
 
 # 🏋️ 記録管理
 with tab2:
     st.subheader("🏋️ トレーニング記録の追加/一覧")
 
-    selected_date = st.session_state.get("selected_date", date.today())
-    show_df = pd.DataFrame(columns=df.columns) if df.empty else df.copy()
-    if not show_df.empty:
-        show_df = show_df[pd.to_datetime(show_df["日付"]).dt.date == selected_date]
+    selected_date = st.date_input("日付を選択", value=date.today())
+    st.session_state["selected_date"] = selected_date
 
+    show_df = df[df["日付"] == selected_date] if not df.empty else pd.DataFrame(columns=df.columns)
     st.caption(f"📅 対象日: {selected_date}")
     st.dataframe(show_df, use_container_width=True, hide_index=True)
 
@@ -293,22 +280,35 @@ with tab3:
     else:
         body_parts = df["部位"].unique().tolist()
         part_tabs = st.tabs(body_parts)
+
         for part_tab, part in zip(part_tabs, body_parts):
             with part_tab:
                 part_df = df[df["部位"] == part]
+
                 for ex in part_df["種目"].unique():
                     st.markdown(f"#### 🏋️ {ex}")
-                    ex_df = part_df[part_df["種目"] == ex]
+                    ex_df = part_df[part_df["種目"] == ex].copy()
+                    ex_df["日付"] = pd.to_datetime(ex_df["日付"])
+
+                    # 日別最大重量
                     max_df = ex_df.groupby("日付")["重量(kg)"].max().reset_index()
+
+                    # ✅ グラフ生成
+                    fig, ax = plt.subplots(figsize=(8, 3))
+                    sns.lineplot(x=max_df["日付"], y=max_df["重量(kg)"], ax=ax, marker="o", label="実績")
+
                     if len(max_df) >= 2:
                         X = np.arange(len(max_df)).reshape(-1, 1)
                         y = max_df["重量(kg)"].values
                         model = LinearRegression().fit(X, y)
                         y_pred = model.predict(X)
-                        fig, ax = plt.subplots(figsize=(8, 3))
-                        sns.lineplot(x=max_df["日付"], y=max_df["重量(kg)"], ax=ax, marker="o", label="実績")
                         sns.lineplot(x=max_df["日付"], y=y_pred, ax=ax, linestyle="--", label="トレンド")
-                        st.pyplot(fig, use_container_width=True)
+
+                    ax.set_xlabel("日付")
+                    ax.set_ylabel("最大重量(kg)")
+                    ax.set_title(f"{ex} の挙上重量推移")
+                    ax.legend()
+                    st.pyplot(fig, use_container_width=True)
 
 # ⚙️ 設定
 with tab4:
@@ -319,4 +319,4 @@ with tab4:
         st.success("ログアウトしました。")
         st.rerun()
 
-st.caption("AI Kintore v3.0 © 2025 | Local Auth + DB + Analysis")
+st.caption("AI Kintore v3.1 © 2025 | Local Auth + DB + Analysis")
