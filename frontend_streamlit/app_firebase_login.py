@@ -18,8 +18,10 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # =========================
 st.set_page_config(page_title="AI Kintore", layout="wide")
 # =========================
-# 日本語フォント設定（Streamlit Cloud対応）
+# 日本語フォント設定（Cloud互換・同梱フォント方式）
 # =========================
+from matplotlib import font_manager
+
 def set_japanese_font():
     os_name = platform.system()
     if os_name == "Windows":
@@ -27,13 +29,13 @@ def set_japanese_font():
     elif os_name == "Darwin":  # macOS
         font_name = "Hiragino Maru Gothic Pro"
     else:
-        # ✅ Linux (Streamlit Cloudなど)
-        font_name = "IPAexGothic"
-        font_path = "/usr/share/fonts/truetype/ipafont-gothic/ipagp.ttf"
-
-        # フォントが無ければ自動インストール
-        if not os.path.exists(font_path):
-            os.system("apt-get update -y && apt-get install -y fonts-ipafont-gothic")
+        # ✅ Cloud用に同梱フォントを指定
+        font_path = os.path.join(os.path.dirname(__file__), "fonts", "ipaexg.ttf")
+        if os.path.exists(font_path):
+            font_manager.fontManager.addfont(font_path)
+            font_name = "IPAexGothic"
+        else:
+            font_name = "DejaVu Sans"  # fallback（英字のみ）
 
     plt.rcParams["font.family"] = font_name
     sns.set(font=font_name, style="whitegrid")
