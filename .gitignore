@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Streamlit & Firebase
+frontend_streamlit/serviceAccountKey.json
+frontend_streamlit/.env
+.env
+.DS_Store

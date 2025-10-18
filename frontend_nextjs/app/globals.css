@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 👇 追加オプション（見た目を少し整える） */
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+}
