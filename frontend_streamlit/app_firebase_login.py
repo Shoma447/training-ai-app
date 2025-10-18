@@ -17,22 +17,29 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # Streamlit 基本設定
 # =========================
 st.set_page_config(page_title="AI Kintore", layout="wide")
-
 # =========================
-# 日本語フォント設定
+# 日本語フォント設定（Streamlit Cloud対応）
 # =========================
 def set_japanese_font():
     os_name = platform.system()
     if os_name == "Windows":
         font_name = "Meiryo"
-    elif os_name == "Darwin":
+    elif os_name == "Darwin":  # macOS
         font_name = "Hiragino Maru Gothic Pro"
     else:
+        # ✅ Linux (Streamlit Cloudなど)
         font_name = "IPAexGothic"
+        font_path = "/usr/share/fonts/truetype/ipafont-gothic/ipagp.ttf"
+
+        # フォントが無ければ自動インストール
+        if not os.path.exists(font_path):
+            os.system("apt-get update -y && apt-get install -y fonts-ipafont-gothic")
+
     plt.rcParams["font.family"] = font_name
     sns.set(font=font_name, style="whitegrid")
 
 set_japanese_font()
+
 
 # =========================
 # DB接続設定（Cloud/Local両対応）
