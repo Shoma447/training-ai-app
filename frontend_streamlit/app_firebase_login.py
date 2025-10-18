@@ -181,7 +181,12 @@ with tab1:
         df_copy = df.copy()
         df_copy["日付"] = pd.to_datetime(df_copy["日付"])
         df_copy["週"] = df_copy["日付"].dt.isocalendar().week
-        df_copy["曜日"] = df_copy["日付"].dt.day_name(locale="ja_JP")
+
+        # ✅ 日本語ロケールが使えない環境対策
+        try:
+            df_copy["曜日"] = df_copy["日付"].dt.day_name(locale="ja_JP")
+        except Exception:
+            df_copy["曜日"] = df_copy["日付"].dt.day_name()  # fallback to English
 
         # ✅ ヒートマップ作成
         heat_df = df_copy.groupby(["週", "曜日"])["ボリューム"].sum().reset_index()
@@ -199,6 +204,7 @@ with tab1:
         st.caption("🟡 赤いほどその週・曜日のトレーニングボリュームが高いことを示します。")
     else:
         st.info("まだトレーニング記録がありません。")
+
 
 # 🏋️ 記録管理
 with tab2:
